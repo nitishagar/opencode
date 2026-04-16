@@ -1,5 +1,4 @@
 import { cmd } from "@/cli/cmd/cmd"
-import { tui } from "./app"
 import { Rpc } from "@/util"
 import { type rpc } from "./worker"
 import path from "path"
@@ -8,13 +7,14 @@ import { UI } from "@/cli/ui"
 import { Log } from "@/util"
 import { errorMessage } from "@/util/error"
 import { withTimeout } from "@/util/timeout"
-import { withNetworkOptions, resolveNetworkOptionsNoConfig } from "@/cli/network"
+import { withNetworkOptions, resolveNetworkOptions } from "@/cli/network"
 import { Filesystem } from "@/util"
 import type { GlobalEvent } from "@opencode-ai/sdk/v2"
 import type { EventSource } from "./context/sdk"
 import { win32DisableProcessedInput, win32InstallCtrlCGuard } from "./win32"
 import { writeHeapSnapshot } from "v8"
 import { TuiConfig } from "./config/tui"
+import { Instance } from "@/project/instance"
 
 declare global {
   const OPENCODE_WORKER_PATH: string
@@ -176,9 +176,12 @@ export const TuiThreadCommand = cmd({
       }
 
       const prompt = await input(args.prompt)
-      const config = await TuiConfig.get()
+      const config = await Instance.provide({
+        directory: cwd,
+        fn: () => TuiConfig.get(),
+      })
 
-      const network = resolveNetworkOptionsNoConfig(args)
+      const network = await resolveNetworkOptions(args)
       const external =
         process.argv.includes("--port") ||
         process.argv.includes("--hostname") ||
@@ -204,7 +207,8 @@ export const TuiThreadCommand = cmd({
       }, 1000).unref?.()
 
       try {
-        await tui({
+        const app = await import("./app")
+        await app.tui({
           url: transport.url,
           async onSnapshot() {
             const tui = writeHeapSnapshot("tui.heapsnapshot")
@@ -233,4 +237,3 @@ export const TuiThreadCommand = cmd({
     process.exit(0)
   },
 })
-// scratch
